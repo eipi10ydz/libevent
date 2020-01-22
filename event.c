@@ -641,6 +641,7 @@ event_base_new_with_config(const struct event_config *cfg)
 		gettime(base, &tmp);
 	}
 
+	// 初始化小根堆
 	min_heap_ctor_(&base->timeheap);
 
 	base->sig.ev_signal_pair[0] = -1;
@@ -674,6 +675,8 @@ event_base_new_with_config(const struct event_config *cfg)
 	    base->max_dispatch_time.tv_sec == -1)
 		base->limit_callbacks_after_prio = INT_MAX;
 
+	// 选择第一个能用的io多路复用实现
+	// evsel 是一个 struct eventop 结构, 相当于是一个多路复用实现的抽象类, 里面的一些函数指针, 即是多路复用器的虚函数
 	for (i = 0; eventops[i] && !base->evbase; i++) {
 		if (cfg != NULL) {
 			/* determine if this backend should be avoided */

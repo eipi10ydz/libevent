@@ -38,8 +38,8 @@
 
 typedef struct min_heap
 {
-	struct event** p;
-	size_t n, a;
+	struct event** p;	// struct event* 的数组
+	size_t n, a;	// n为堆size, a为堆capacity
 } min_heap_t;
 
 static inline void	     min_heap_ctor_(min_heap_t* s);
@@ -68,6 +68,7 @@ int min_heap_empty_(min_heap_t* s) { return 0 == s->n; }
 size_t min_heap_size_(min_heap_t* s) { return s->n; }
 struct event* min_heap_top_(min_heap_t* s) { return s->n ? *s->p : 0; }
 
+// 插入堆, 放在最后一个然后上浮
 int min_heap_push_(min_heap_t* s, struct event* e)
 {
 	if (min_heap_reserve_(s, s->n + 1))
@@ -76,6 +77,8 @@ int min_heap_push_(min_heap_t* s, struct event* e)
 	return 0;
 }
 
+// 弹出堆顶, 把最后一个元素放到堆顶下沉
+// 注意需要把e->ev_timeout_pos.min_heap_idx标记清除为-1
 struct event* min_heap_pop_(min_heap_t* s)
 {
 	if (s->n)
@@ -88,11 +91,13 @@ struct event* min_heap_pop_(min_heap_t* s)
 	return 0;
 }
 
+// 堆顶idx为0
 int min_heap_elt_is_top_(const struct event *e)
 {
 	return e->ev_timeout_pos.min_heap_idx == 0;
 }
 
+// 删除堆中元素
 int min_heap_erase_(min_heap_t* s, struct event* e)
 {
 	if (EV_SIZE_MAX != e->ev_timeout_pos.min_heap_idx)
@@ -114,6 +119,7 @@ int min_heap_erase_(min_heap_t* s, struct event* e)
 	return -1;
 }
 
+// 如果不在堆中先插入, 否则调整
 int min_heap_adjust_(min_heap_t *s, struct event *e)
 {
 	if (EV_SIZE_MAX == e->ev_timeout_pos.min_heap_idx) {
@@ -132,6 +138,10 @@ int min_heap_adjust_(min_heap_t *s, struct event *e)
 
 int min_heap_reserve_(min_heap_t* s, size_t n)
 {
+	// 增长策略, 如果capacity小于待分配n
+	// 如果原来非0, capacity变为原来两倍
+	// 如果原来为0, 变为8
+	// 如果capacity还小于n则为n
 	if (s->a < n)
 	{
 		struct event** p;
@@ -146,6 +156,8 @@ int min_heap_reserve_(min_heap_t* s, size_t n)
 	return 0;
 }
 
+// 不管实际先上浮一次, 是否继续再取决于父节点
+// hole_index 为 e 开始的位置, 一般为e->ev_timeout_pos.min_heap_idx
 void min_heap_shift_up_unconditional_(min_heap_t* s, size_t hole_index, struct event* e)
 {
     size_t parent = (hole_index - 1) / 2;
@@ -158,6 +170,8 @@ void min_heap_shift_up_unconditional_(min_heap_t* s, size_t hole_index, struct e
     (s->p[hole_index] = e)->ev_timeout_pos.min_heap_idx = hole_index;
 }
 
+// 小根堆, 上浮直至小于父节点/到达根节点
+// hole_index 为 e 开始的位置, 一般为e->ev_timeout_pos.min_heap_idx
 void min_heap_shift_up_(min_heap_t* s, size_t hole_index, struct event* e)
 {
     size_t parent = (hole_index - 1) / 2;
@@ -170,12 +184,16 @@ void min_heap_shift_up_(min_heap_t* s, size_t hole_index, struct event* e)
     (s->p[hole_index] = e)->ev_timeout_pos.min_heap_idx = hole_index;
 }
 
+// hole_index 为 e 开始的位置, 一般为e->ev_timeout_pos.min_heap_idx
 void min_heap_shift_down_(min_heap_t* s, size_t hole_index, struct event* e)
 {
     size_t min_child = 2 * (hole_index + 1);
     while (min_child <= s->n)
 	{
+	// 因为下标从0开始, 如果 min_child == s->n 说明, 只有左孩, 直接减1
+	// 否则, 如果右孩大于左孩, 减1选左孩; 否则选右孩
 	min_child -= min_child == s->n || min_heap_elem_greater(s->p[min_child], s->p[min_child - 1]);
+	// 如果e比孩子都小, 则不用下沉, break
 	if (!(min_heap_elem_greater(e, s->p[min_child])))
 	    break;
 	(s->p[hole_index] = s->p[min_child])->ev_timeout_pos.min_heap_idx = hole_index;
